@@ -1,0 +1,139 @@
+# ===============================
+# Unity Project - Cross Platform
+# ===============================
+
+# Core Unity folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Mm]emoryCaptures/
+[Mm]inimalBuild/
+
+# Unity Build Artifacts by Platform
+# ---------------------------------
+
+# Windows standalone
+*.exe
+*.exe.config
+*.pdb
+
+# macOS builds
+*.app
+*.dSYM/
+
+# Linux builds
+*.x86
+*.x86_64
+*.utmp
+
+# Android
+*.apk
+*.aab
+*.obb
+.gradle/
+*.keystore
+
+# iOS (Xcode)
+build/
+*.xcworkspace
+*.xcuserstate
+*.xcuserdata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+
+# WebGL
+Builds/WebGL/
+Build/WebGL/
+
+# ===============================
+# IDE / Editor-specific ignores
+# ===============================
+
+# Visual Studio
+.vscode/
+.vs/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Other IDEs
+*.pidb
+*.booproj
+
+# ===============================
+# Unity generated files
+# ===============================
+
+sysinfo.txt
+*.stacktrace
+*.log
+
+# ===============================
+# Platform-specific
+# ===============================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ===============================
+# StreamingAssets
+# ===============================
+
+# Keep model/config/data
+# Ignore junk, logs, tmp
+StreamingAssets/**/*.tmp
+StreamingAssets/**/*.log
+StreamingAssets/**/*.bak
+Assets/StreamingAssets/phonemeflow_models
+Assets/piper_models_simplified
+
+# Uncomment if you host large model files externally:
+# StreamingAssets/**/*.onnx
+
+# ===============================
+# Unity Collab (if used)
+# ===============================
+
+.Collab/
+
+# ===============================
+# Unity Cloud Build (optional)
+# ===============================
+
+# Uncomment if using Unity Cloud Build
+# /[Uu]ser[Ss]ettings/
+
+Assets/Carruto/PhonemeFlowInstaller/Resources
+ExportedPackage
+
+!Assets/Carruto/PhonemeFlow/
+!Assets/Carruto/PhonemeFlow/Core/Editor/Build
+!Assets/Carruto/PhonemeFlow/Core/Editor/Build/*.cs
+!Assets/Carruto/PhonemeFlow/Editor/Build
+!Assets/Carruto/PhonemeFlow/Editor/Build/*.cs
+Assets/TextMesh Pro
+UserSettings/Layouts/default-6000.dwlt

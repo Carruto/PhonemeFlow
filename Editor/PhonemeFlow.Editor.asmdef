@@ -1,0 +1,16 @@
+{
+  "name": "PhonemeFlow.Editor",
+  "references": [
+    "PhonemeFlow"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "optionalUnityReferences": []
+}
