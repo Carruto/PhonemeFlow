@@ -1,6 +1,6 @@
 {
     "name": "com.carruto.phonemeflow",
-    "displayName": "PhonemeFlow - eSpeakNG Builds",
+    "displayName": "PhonemeFlow",
     "version": "0.1.0",
     "unity": "2021.3",
     "description": "Platform-ready eSpeakNG builds and Unity utility scripts for phoneme workflows and PhonemeX integration.",
