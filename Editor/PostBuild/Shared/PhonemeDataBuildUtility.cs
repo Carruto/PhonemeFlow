@@ -3,6 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEngine;
+using PackageManagerPackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace PhonemeFlow
 {
@@ -98,10 +99,10 @@ namespace PhonemeFlow
                 yield return Path.Combine(projectRoot, "Packages", "com.carruto.phonemeflow", "Runtime", "BuildResources", "PhonemeFlowResources", "phoneme-data");
             }
 
-            PackageInfo packageInfo = null;
+            PackageManagerPackageInfo packageInfo = null;
             try
             {
-                packageInfo = PackageInfo.FindForAssembly(typeof(PhonemeDataBuildUtility).Assembly);
+                packageInfo = PackageManagerPackageInfo.FindForAssembly(typeof(PhonemeDataBuildUtility).Assembly);
             }
             catch
             {
