@@ -1,0 +1,29 @@
+{
+    "name": "com.carruto.phonemeflow",
+    "displayName": "PhonemeFlow - eSpeakNG Builds",
+    "version": "0.1.0",
+    "unity": "2021.3",
+    "description": "Platform-ready eSpeakNG builds and Unity utility scripts for phoneme workflows and PhonemeX integration.",
+    "author": {
+        "name": "Carruto",
+        "email": "support@carruto.com",
+        "url": "https://carruto.com"
+    },
+    "keywords": [
+        "phoneme",
+        "tts",
+        "espeakng",
+        "phonemeflow",
+        "carruto",
+        "phonemex",
+        "phonemex_pro"
+    ],
+    "type": "library",
+    "samples": [
+        {
+            "displayName": "Basic Setup",
+            "description": "Minimal example showing how to reference and use the PhonemeFlow eSpeakNG builds.",
+            "path": "Samples~/Basic"
+        }
+    ]
+}
