@@ -3,7 +3,9 @@ using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEditor.Callbacks;
 using UnityEngine;
+using UnityEditor.PackageManager;
 using System.IO;
+using PackageManagerPackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace PhonemeFlow
 {
@@ -11,19 +13,29 @@ namespace PhonemeFlow
     {
         public int callbackOrder => 0;
 
-        private static readonly string SourcePath = Path.Combine("Assets", "PhonemeFlow", "Runtime", "BuildResources", "PhonemeFlowResources");
-        private static readonly string DestinationPath = Path.Combine("Assets", "StreamingAssets", "PhonemeFlowResources");
+        private const string ResourceFolderGuid = "26ecb85469e6e074aa5662516fbae19b";
+        private static readonly string LegacySourcePath = Path.Combine("Assets", "PhonemeFlow", "Runtime", "BuildResources", "PhonemeFlowResources");
+        private static readonly string DestinationAssetPath = Path.Combine("Assets", "StreamingAssets", "PhonemeFlowResources");
+
+        private static string _cachedSourcePath;
 
         public void OnPreprocessBuild(BuildReport report)
         {
             if (report.summary.platform == BuildTarget.WebGL)
             {
-                if (Directory.Exists(DestinationPath))
+                if (!TryGetSourcePath(out var sourcePath))
                 {
-                    Directory.Delete(DestinationPath, true);
+                    return;
                 }
 
-                CopyDirectory(SourcePath, DestinationPath);
+                var destinationPath = GetAbsolutePath(DestinationAssetPath);
+
+                if (Directory.Exists(destinationPath))
+                {
+                    Directory.Delete(destinationPath, true);
+                }
+
+                CopyDirectory(sourcePath, destinationPath);
                 Debug.Log("PhonemeFlow: Copied PhonemeFlowResources to StreamingAssets for WebGL build.");
             }
         }
@@ -32,13 +44,101 @@ namespace PhonemeFlow
         {
             if (report.summary.platform == BuildTarget.WebGL)
             {
-                if (Directory.Exists(DestinationPath))
+                var destinationPath = GetAbsolutePath(DestinationAssetPath);
+
+                if (Directory.Exists(destinationPath))
                 {
-                    Directory.Delete(DestinationPath, true);
-                    File.Delete(DestinationPath + ".meta"); // Optional: remove meta file too
+                    Directory.Delete(destinationPath, true);
+
+                    var destinationMetaPath = GetAbsolutePath(DestinationAssetPath + ".meta");
+                    if (File.Exists(destinationMetaPath))
+                    {
+                        File.Delete(destinationMetaPath); // Optional: remove meta file too
+                    }
+
                     Debug.Log("PhonemeFlow: Removed temporary PhonemeFlowResources from StreamingAssets after build.");
                 }
             }
+        }
+
+        private static bool TryGetSourcePath(out string sourcePath)
+        {
+            if (!string.IsNullOrEmpty(_cachedSourcePath) && Directory.Exists(_cachedSourcePath))
+            {
+                sourcePath = _cachedSourcePath;
+                return true;
+            }
+
+            var guidAssetPath = AssetDatabase.GUIDToAssetPath(ResourceFolderGuid);
+            if (TryResolveAssetPath(guidAssetPath, out var absoluteGuidPath))
+            {
+                _cachedSourcePath = absoluteGuidPath;
+                sourcePath = absoluteGuidPath;
+                return true;
+            }
+
+            var legacyAbsolutePath = GetAbsolutePath(LegacySourcePath);
+            if (Directory.Exists(legacyAbsolutePath))
+            {
+                _cachedSourcePath = legacyAbsolutePath;
+                sourcePath = legacyAbsolutePath;
+                return true;
+            }
+
+            Debug.LogError("PhonemeFlow: Unable to locate PhonemeFlowResources. Ensure the package is installed correctly.");
+            sourcePath = null;
+            return false;
+        }
+
+        private static bool TryResolveAssetPath(string assetPath, out string absolutePath)
+        {
+            absolutePath = null;
+
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                return false;
+            }
+
+            assetPath = assetPath.Replace('\\', '/');
+
+            if (assetPath.StartsWith("Packages/"))
+            {
+                var packageInfo = PackageManagerPackageInfo.FindForAssetPath(assetPath);
+                if (packageInfo != null)
+                {
+                    var packagePrefix = $"Packages/{packageInfo.name}";
+                    var relativeInPackage = assetPath.Length > packagePrefix.Length
+                        ? assetPath.Substring(packagePrefix.Length + 1)
+                        : string.Empty;
+
+                    var combined = string.IsNullOrEmpty(relativeInPackage)
+                        ? packageInfo.resolvedPath
+                        : Path.Combine(packageInfo.resolvedPath, relativeInPackage.Replace('/', Path.DirectorySeparatorChar));
+
+                    absolutePath = Path.GetFullPath(combined);
+                    return Directory.Exists(absolutePath);
+                }
+            }
+
+            absolutePath = GetAbsolutePath(assetPath);
+            return Directory.Exists(absolutePath);
+        }
+
+        private static string GetAbsolutePath(string projectRelativePath)
+        {
+            if (string.IsNullOrEmpty(projectRelativePath))
+            {
+                return null;
+            }
+
+            if (Path.IsPathRooted(projectRelativePath))
+            {
+                return projectRelativePath;
+            }
+
+            var normalizedRelativePath = projectRelativePath.Replace('/', Path.DirectorySeparatorChar);
+            var projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            return Path.GetFullPath(Path.Combine(projectRoot, normalizedRelativePath));
         }
 
         private static void CopyDirectory(string sourceDir, string destinationDir)
