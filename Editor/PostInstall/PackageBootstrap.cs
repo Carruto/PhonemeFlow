@@ -9,22 +9,37 @@ using UnityEditor;
 using UnityEngine;
 using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
+[InitializeOnLoad]
 namespace Carruto.PhonemeFlow.Editor
 {
     /// <summary>
     /// Mirrors the native payload that lives inside the package into the host project's Assets folders.
     /// </summary>
+    [InitializeOnLoad]
     internal static class PackageBootstrap
     {
         private const string PackageName = "com.carruto.phonemeflow";
         private const string MenuPath = "Tools/PhonemeFlow/Resync Native Payload";
         private const string SyncFileName = "PhonemeFlowSync.json";
         private static readonly string[] PluginSubFolders = { "macOS", "Windows", "Linux" };
-
-        [InitializeOnLoadMethod]
-        private static void Initialize()
+        private static readonly string[] PluginExtensions =
         {
-            EditorApplication.delayCall += () => RunBootstrap(false);
+            ".dll", ".dylib", ".so", ".a", ".aar", ".jnilib", ".bundle"
+        };
+        private static readonly BuildTarget[] PackagePluginTargets =
+        {
+            BuildTarget.StandaloneOSX,
+            BuildTarget.StandaloneWindows,
+            BuildTarget.StandaloneWindows64,
+            BuildTarget.StandaloneLinux64,
+            BuildTarget.Android,
+            BuildTarget.iOS,
+            BuildTarget.WebGL
+        };
+
+        static PackageBootstrap()
+        {
+            RunBootstrap(false);
         }
 
         [MenuItem(MenuPath)]
@@ -106,6 +121,8 @@ namespace Carruto.PhonemeFlow.Editor
             {
                 AssetDatabase.StopAssetEditing();
             }
+
+            DisablePackagePlugins(packageInfo, sourcePluginRoot);
 
             if (anyCopied)
             {
@@ -406,6 +423,127 @@ namespace Carruto.PhonemeFlow.Editor
             catch (Exception ex)
             {
                 Debug.LogWarning($"[PhonemeFlow] Failed to persist sync state: {ex.Message}");
+            }
+        }
+
+        private static void DisablePackagePlugins(PackageInfo packageInfo, string sourcePluginRoot)
+        {
+            if (packageInfo == null || string.IsNullOrEmpty(sourcePluginRoot) || !Directory.Exists(sourcePluginRoot))
+            {
+                return;
+            }
+
+            bool anyChanged = false;
+            var files = Directory.GetFiles(sourcePluginRoot, "*", SearchOption.AllDirectories);
+            foreach (var file in files)
+            {
+                if (!IsNativePlugin(file))
+                {
+                    continue;
+                }
+
+                var unityPath = ToUnityPath(file, packageInfo);
+                if (string.IsNullOrEmpty(unityPath))
+                {
+                    continue;
+                }
+
+                var importer = AssetImporter.GetAtPath(unityPath) as PluginImporter;
+                if (importer == null)
+                {
+                    continue;
+                }
+
+                bool changed = false;
+                if (importer.GetCompatibleWithEditor())
+                {
+                    importer.SetCompatibleWithEditor(false);
+                    changed = true;
+                }
+
+                foreach (var target in PackagePluginTargets)
+                {
+                    if (importer.GetCompatibleWithPlatform(target))
+                    {
+                        importer.SetCompatibleWithPlatform(target, false);
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    importer.SaveAndReimport();
+                    anyChanged = true;
+                }
+            }
+
+            if (anyChanged)
+            {
+                Debug.Log("[PhonemeFlow] Disabled package plugin imports to avoid duplicate native libraries.");
+            }
+        }
+
+        private static bool IsNativePlugin(string path)
+        {
+            var extension = Path.GetExtension(path);
+            if (string.IsNullOrEmpty(extension))
+            {
+                return false;
+            }
+
+            foreach (var candidate in PluginExtensions)
+            {
+                if (string.Equals(candidate, extension, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string ToUnityPath(string absolutePath, PackageInfo packageInfo)
+        {
+            if (string.IsNullOrEmpty(absolutePath))
+            {
+                return null;
+            }
+
+            var normalized = NormalizePath(absolutePath);
+            var assetsRoot = NormalizePath(Application.dataPath);
+            if (!string.IsNullOrEmpty(assetsRoot) && normalized.StartsWith(assetsRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                var relative = normalized.Substring(assetsRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return $"Assets/{relative}".Replace("\\", "/");
+            }
+
+            if (packageInfo != null && !string.IsNullOrEmpty(packageInfo.resolvedPath))
+            {
+                var packageRoot = NormalizePath(packageInfo.resolvedPath);
+                if (normalized.StartsWith(packageRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    var relative = normalized.Substring(packageRoot.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    return $"Packages/{packageInfo.name}/{relative}".Replace("\\", "/");
+                }
+            }
+
+            return normalized.Replace("\\", "/");
+        }
+
+        private static string NormalizePath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return path;
+            }
+
+            try
+            {
+                return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            }
+            catch
+            {
+                return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             }
         }
 
