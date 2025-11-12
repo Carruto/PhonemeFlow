@@ -6,8 +6,8 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using UnityEditor;
-using UnityEditor.PackageManager;
 using UnityEngine;
+using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace Carruto.PhonemeFlow.Editor
 {
