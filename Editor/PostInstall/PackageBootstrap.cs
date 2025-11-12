@@ -9,7 +9,6 @@ using UnityEditor;
 using UnityEngine;
 using PackageInfo = UnityEditor.PackageManager.PackageInfo;
 
-[InitializeOnLoad]
 namespace Carruto.PhonemeFlow.Editor
 {
     /// <summary>
@@ -21,7 +20,6 @@ namespace Carruto.PhonemeFlow.Editor
         private const string PackageName = "com.carruto.phonemeflow";
         private const string MenuPath = "Tools/PhonemeFlow/Resync Native Payload";
         private const string SyncFileName = "PhonemeFlowSync.json";
-        private static readonly string[] PluginSubFolders = { "macOS", "Windows", "Linux" };
         private static readonly string[] PluginExtensions =
         {
             ".dll", ".dylib", ".so", ".a", ".aar", ".jnilib", ".bundle"
@@ -157,26 +155,7 @@ namespace Carruto.PhonemeFlow.Editor
                 return false;
             }
 
-            bool copied = false;
-
-            var sourceRootMeta = sourcePluginRoot + ".meta";
-            var targetRootMeta = targetPluginRoot + ".meta";
-            copied |= CopyFileIfDifferent(sourceRootMeta, targetRootMeta);
-
-            foreach (var sub in PluginSubFolders)
-            {
-                var source = Path.Combine(sourcePluginRoot, sub);
-                var target = Path.Combine(targetPluginRoot, sub);
-                if (!Directory.Exists(source))
-                {
-                    continue;
-                }
-
-                copied |= CopyFileIfDifferent(source + ".meta", target + ".meta");
-                copied |= MirrorDirectory(source, target);
-            }
-
-            return copied;
+            return MirrorDirectory(sourcePluginRoot, targetPluginRoot);
         }
 
         private static bool MirrorDirectory(string sourceDir, string targetDir)
@@ -249,8 +228,7 @@ namespace Carruto.PhonemeFlow.Editor
 
             if (Directory.Exists(pluginSourceRoot))
             {
-                var pluginFiles = CollectPluginFiles(packageRoot, pluginSourceRoot);
-                parts.AddRange(pluginFiles);
+                parts.AddRange(CollectDirectoryFiles(pluginSourceRoot, packageRoot));
             }
 
             if (Directory.Exists(resourceSourceRoot))
@@ -261,31 +239,6 @@ namespace Carruto.PhonemeFlow.Editor
 
             var concatenated = string.Join("|", parts.OrderBy(p => p, StringComparer.Ordinal));
             return ComputeHashForString(concatenated);
-        }
-
-        private static IEnumerable<string> CollectPluginFiles(string packageRoot, string pluginSourceRoot)
-        {
-            var files = new List<string>();
-
-            foreach (var sub in PluginSubFolders)
-            {
-                var source = Path.Combine(pluginSourceRoot, sub);
-                if (!Directory.Exists(source))
-                {
-                    continue;
-                }
-
-                files.AddRange(CollectDirectoryFiles(source, packageRoot));
-            }
-
-            var rootMeta = pluginSourceRoot + ".meta";
-            if (File.Exists(rootMeta))
-            {
-                var rel = MakeRelativePath(packageRoot, rootMeta);
-                files.Add($"{rel}:{ComputeFileHash(rootMeta)}");
-            }
-
-            return files;
         }
 
         private static IEnumerable<string> CollectDirectoryFiles(string root, string relativeTo)
@@ -368,25 +321,19 @@ namespace Carruto.PhonemeFlow.Editor
 
         private static bool TargetsLookValid(string pluginTargetRoot, string resourceTargetRoot)
         {
-            if (!Directory.Exists(pluginTargetRoot))
+            if (!Directory.Exists(pluginTargetRoot) || !Directory.Exists(resourceTargetRoot))
             {
                 return false;
             }
 
-            foreach (var sub in PluginSubFolders)
-            {
-                if (!Directory.Exists(Path.Combine(pluginTargetRoot, sub)))
-                {
-                    return false;
-                }
-            }
-
-            if (!Directory.Exists(resourceTargetRoot))
+            var pluginFiles = Directory.GetFiles(pluginTargetRoot, "*", SearchOption.AllDirectories);
+            if (pluginFiles.Length == 0)
             {
                 return false;
             }
 
-            return Directory.GetFiles(resourceTargetRoot, "*", SearchOption.AllDirectories).Length > 0;
+            var resourceFiles = Directory.GetFiles(resourceTargetRoot, "*", SearchOption.AllDirectories);
+            return resourceFiles.Length > 0;
         }
 
         private static SyncState LoadState(string path)
