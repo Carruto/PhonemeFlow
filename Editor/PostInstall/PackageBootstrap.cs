@@ -82,6 +82,8 @@ namespace Carruto.PhonemeFlow.Editor
             var projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath;
 
             var sourcePluginRoot = Path.Combine(packageRoot, "Plugins", "PhonemeFlow");
+            var sourceRuntimeRoot = Path.Combine(packageRoot, "Runtime");
+            var sourceEditorRoot = Path.Combine(packageRoot, "Editor");
             var sourceResourceRoot = Path.Combine(packageRoot, "Runtime", "BuildResources", "PhonemeFlowResources", "phoneme-data");
 
             if (!Directory.Exists(sourcePluginRoot) && !Directory.Exists(sourceResourceRoot))
@@ -90,13 +92,25 @@ namespace Carruto.PhonemeFlow.Editor
                 return;
             }
 
-            var targetPluginRoot = Path.Combine(Application.dataPath, "PhonemeFlow", "Plugins", "PhonemeFlow");
+            var targetPackageRoot = Path.Combine(Application.dataPath, "PhonemeFlow");
+            var targetPluginRoot = Path.Combine(targetPackageRoot, "Plugins", "PhonemeFlow");
+            var targetRuntimeRoot = Path.Combine(targetPackageRoot, "Runtime");
+            var targetEditorRoot = Path.Combine(targetPackageRoot, "Editor");
             var targetResourceRoot = Path.Combine(Application.dataPath, "StreamingAssets", "PhonemeFlowResources", "phoneme-data");
             var syncFilePath = Path.Combine(projectRoot, "ProjectSettings", SyncFileName);
 
-            var fingerprint = BuildFingerprint(packageRoot, sourcePluginRoot, sourceResourceRoot);
+            var editorPostInstallSource = Path.Combine(sourceEditorRoot, "PostInstall");
+            Func<string, bool> editorSkipPredicate = path => IsWithin(path, editorPostInstallSource);
+
+            var fingerprint = BuildFingerprint(
+                packageRoot,
+                sourcePluginRoot,
+                sourceResourceRoot,
+                sourceRuntimeRoot,
+                sourceEditorRoot,
+                editorSkipPredicate);
             var cachedState = LoadState(syncFilePath);
-            var targetsValid = TargetsLookValid(targetPluginRoot, targetResourceRoot);
+            var targetsValid = TargetsLookValid(targetPluginRoot, targetResourceRoot, targetRuntimeRoot, targetEditorRoot);
 
             if (!force && cachedState != null && cachedState.sourceHash == fingerprint && targetsValid)
             {
@@ -104,6 +118,7 @@ namespace Carruto.PhonemeFlow.Editor
                 return;
             }
 
+            Directory.CreateDirectory(targetPackageRoot);
             Directory.CreateDirectory(Path.GetDirectoryName(targetPluginRoot) ?? targetPluginRoot);
             Directory.CreateDirectory(Path.GetDirectoryName(targetResourceRoot) ?? targetResourceRoot);
             Directory.CreateDirectory(Path.GetDirectoryName(syncFilePath) ?? projectRoot);
@@ -113,6 +128,9 @@ namespace Carruto.PhonemeFlow.Editor
             try
             {
                 anyCopied |= MirrorPluginPayload(sourcePluginRoot, targetPluginRoot);
+                anyCopied |= MirrorDirectory(sourceRuntimeRoot, targetRuntimeRoot);
+                RemoveDirectoryIfExists(Path.Combine(targetEditorRoot, "PostInstall"));
+                anyCopied |= MirrorDirectory(sourceEditorRoot, targetEditorRoot, editorSkipPredicate);
                 anyCopied |= MirrorDirectory(sourceResourceRoot, targetResourceRoot);
             }
             finally
@@ -158,9 +176,14 @@ namespace Carruto.PhonemeFlow.Editor
             return MirrorDirectory(sourcePluginRoot, targetPluginRoot);
         }
 
-        private static bool MirrorDirectory(string sourceDir, string targetDir)
+        private static bool MirrorDirectory(string sourceDir, string targetDir, Func<string, bool> directorySkip = null)
         {
             if (!Directory.Exists(sourceDir))
+            {
+                return false;
+            }
+
+            if (directorySkip != null && directorySkip(sourceDir))
             {
                 return false;
             }
@@ -184,6 +207,11 @@ namespace Carruto.PhonemeFlow.Editor
 
             foreach (var child in Directory.GetDirectories(sourceDir))
             {
+                if (directorySkip != null && directorySkip(child))
+                {
+                    continue;
+                }
+
                 var folderName = Path.GetFileName(child);
                 if (folderName == null)
                 {
@@ -191,7 +219,7 @@ namespace Carruto.PhonemeFlow.Editor
                 }
 
                 var childTarget = Path.Combine(targetDir, folderName);
-                changed |= MirrorDirectory(child, childTarget);
+                changed |= MirrorDirectory(child, childTarget, directorySkip);
             }
 
             return changed;
@@ -222,7 +250,13 @@ namespace Carruto.PhonemeFlow.Editor
             return true;
         }
 
-        private static string BuildFingerprint(string packageRoot, string pluginSourceRoot, string resourceSourceRoot)
+        private static string BuildFingerprint(
+            string packageRoot,
+            string pluginSourceRoot,
+            string resourceSourceRoot,
+            string runtimeSourceRoot,
+            string editorSourceRoot,
+            Func<string, bool> editorSkipPredicate)
         {
             var parts = new List<string>();
 
@@ -237,38 +271,65 @@ namespace Carruto.PhonemeFlow.Editor
                 parts.AddRange(resourceFiles);
             }
 
+            if (Directory.Exists(runtimeSourceRoot))
+            {
+                parts.AddRange(CollectDirectoryFiles(runtimeSourceRoot, packageRoot));
+            }
+
+            if (Directory.Exists(editorSourceRoot))
+            {
+                parts.AddRange(CollectDirectoryFiles(editorSourceRoot, packageRoot, editorSkipPredicate));
+            }
+
             var concatenated = string.Join("|", parts.OrderBy(p => p, StringComparer.Ordinal));
             return ComputeHashForString(concatenated);
         }
 
-        private static IEnumerable<string> CollectDirectoryFiles(string root, string relativeTo)
+        private static IEnumerable<string> CollectDirectoryFiles(string root, string relativeTo, Func<string, bool> directorySkip = null)
         {
             var results = new List<string>();
-            var allFiles = Directory.GetFiles(root, "*", SearchOption.AllDirectories);
-
-            foreach (var file in allFiles)
+            if (!Directory.Exists(root))
             {
-                var rel = MakeRelativePath(relativeTo, file);
-                var hash = ComputeFileHash(file);
-                results.Add($"{rel}:{hash}");
+                return results;
             }
 
-            var directories = Directory.GetDirectories(root, "*", SearchOption.AllDirectories).ToList();
-            directories.Add(root);
-            foreach (var dir in directories)
+            var stack = new Stack<string>();
+            stack.Push(root);
+
+            while (stack.Count > 0)
             {
-                var meta = dir + ".meta";
-                if (!File.Exists(meta))
+                var current = stack.Pop();
+                if (directorySkip != null && directorySkip(current))
                 {
                     continue;
                 }
 
-                var rel = MakeRelativePath(relativeTo, meta);
-                var hash = ComputeFileHash(meta);
-                results.Add($"{rel}:{hash}");
+                AddFileEntry(current + ".meta");
+
+                foreach (var file in Directory.GetFiles(current, "*", SearchOption.TopDirectoryOnly))
+                {
+                    AddFileEntry(file);
+                }
+
+                foreach (var child in Directory.GetDirectories(current, "*", SearchOption.TopDirectoryOnly))
+                {
+                    stack.Push(child);
+                }
             }
 
             return results.OrderBy(entry => entry, StringComparer.Ordinal);
+
+            void AddFileEntry(string path)
+            {
+                if (!File.Exists(path))
+                {
+                    return;
+                }
+
+                var rel = MakeRelativePath(relativeTo, path);
+                var hash = ComputeFileHash(path);
+                results.Add($"{rel}:{hash}");
+            }
         }
 
         private static string MakeRelativePath(string root, string path)
@@ -319,21 +380,61 @@ namespace Carruto.PhonemeFlow.Editor
             return BitConverter.ToString(hash).Replace("-", string.Empty);
         }
 
-        private static bool TargetsLookValid(string pluginTargetRoot, string resourceTargetRoot)
+        private static void RemoveDirectoryIfExists(string directoryPath)
         {
-            if (!Directory.Exists(pluginTargetRoot) || !Directory.Exists(resourceTargetRoot))
+            if (!Directory.Exists(directoryPath))
+            {
+                return;
+            }
+
+            Directory.Delete(directoryPath, true);
+            var metaPath = directoryPath + ".meta";
+            if (File.Exists(metaPath))
+            {
+                File.Delete(metaPath);
+            }
+        }
+
+        private static bool IsWithin(string candidatePath, string potentialParent)
+        {
+            if (string.IsNullOrEmpty(candidatePath) || string.IsNullOrEmpty(potentialParent))
             {
                 return false;
             }
 
-            var pluginFiles = Directory.GetFiles(pluginTargetRoot, "*", SearchOption.AllDirectories);
-            if (pluginFiles.Length == 0)
+            var normalizedCandidate = NormalizePath(candidatePath);
+            var normalizedParent = NormalizePath(potentialParent);
+            if (string.IsNullOrEmpty(normalizedCandidate) || string.IsNullOrEmpty(normalizedParent))
             {
                 return false;
             }
 
-            var resourceFiles = Directory.GetFiles(resourceTargetRoot, "*", SearchOption.AllDirectories);
-            return resourceFiles.Length > 0;
+            if (normalizedCandidate.Equals(normalizedParent, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return normalizedCandidate.StartsWith(
+                normalizedParent + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TargetsLookValid(string pluginTargetRoot, string resourceTargetRoot, string runtimeTargetRoot, string editorTargetRoot)
+        {
+            return DirectoryHasFiles(pluginTargetRoot)
+                && DirectoryHasFiles(resourceTargetRoot)
+                && DirectoryHasFiles(runtimeTargetRoot)
+                && DirectoryHasFiles(editorTargetRoot);
+        }
+
+        private static bool DirectoryHasFiles(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                return false;
+            }
+
+            return Directory.GetFiles(path, "*", SearchOption.AllDirectories).Length > 0;
         }
 
         private static SyncState LoadState(string path)
