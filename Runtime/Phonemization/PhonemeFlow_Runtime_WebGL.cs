@@ -4,9 +4,10 @@ namespace PhonemeFlow
 
     public class PhonemeFlow_Runtime_WebGL : IPhonemeFlow
     {
-        public void Initialize(string dataPath, string voice)
+        public bool Initialize(string dataPath, string voice)
         {
             NativeWebGLWrapper.Initialize(dataPath, voice);
+            return true;
         }
 
         public string GetPhonemes(string text)

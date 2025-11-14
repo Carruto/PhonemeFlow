@@ -8,10 +8,13 @@ namespace PhonemeFlow
         /// <param name="dataPath">The path to the phoneme data.</param>
         /// <param name="voice">The voice to use for the conversion.</param>
 
-        public void Initialize(string dataPath, string voice)
+        public bool Initialize(string dataPath, string voice)
         {
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
             NativeWindowsWrapper.Initialize(dataPath, voice);
+            return true;
+#else
+            return false;
 #endif
         }
 

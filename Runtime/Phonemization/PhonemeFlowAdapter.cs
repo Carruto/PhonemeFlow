@@ -65,8 +65,17 @@ namespace PhonemeFlow
                 return;
             }
 
-            phonemizer.Initialize(resolvedPath, voice);
-            isInitialized = true;
+            bool initResult = false;
+            try
+            {
+                initResult = phonemizer.Initialize(resolvedPath, voice);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"PhonemeFlowAdapter.Initialize failed: {ex.Message}");
+            }
+
+            isInitialized = initResult;
         }
 
 #if UNITY_EDITOR || UNITY_STANDALONE_OSX || UNITY_STANDALONE_WIN || UNITY_STANDALONE_LINUX
@@ -74,18 +83,37 @@ namespace PhonemeFlow
         {
             if (string.IsNullOrEmpty(userSuppliedPath) || userSuppliedPath == "/phoneme-data" || userSuppliedPath == "\\phoneme-data")
             {
-                return Path.Combine(Application.streamingAssetsPath, "PhonemeFlowResources", "phoneme-data");
+                return ResolveWithFallback(Path.Combine(Application.streamingAssetsPath, "PhonemeFlowResources", "phoneme-data"));
             }
 
             if (userSuppliedPath.StartsWith("/") || userSuppliedPath.StartsWith("\\"))
             {
                 string trimmed = userSuppliedPath.TrimStart('/', '\\');
-                return Path.Combine(Application.streamingAssetsPath, NormalizeRelativePath(trimmed));
+                return ResolveWithFallback(Path.Combine(Application.streamingAssetsPath, NormalizeRelativePath(trimmed)));
             }
 
-            return Path.IsPathRooted(userSuppliedPath)
+            string candidate = Path.IsPathRooted(userSuppliedPath)
                 ? userSuppliedPath
                 : Path.Combine(Application.streamingAssetsPath, NormalizeRelativePath(userSuppliedPath));
+
+            return ResolveWithFallback(candidate);
+        }
+
+        private static string ResolveWithFallback(string primaryPath)
+        {
+            if (Directory.Exists(primaryPath))
+            {
+                return primaryPath;
+            }
+
+            string editorFallback = Path.Combine(Application.dataPath, "PhonemeFlow", "Runtime", "BuildResources", "PhonemeFlowResources", "phoneme-data");
+            if (Directory.Exists(editorFallback))
+            {
+                Debug.LogWarning($"[PhonemeFlowAdapter] StreamingAssets data path missing ({primaryPath}). Using editor resources at {editorFallback}.");
+                return editorFallback;
+            }
+
+            return primaryPath;
         }
 
         private static string NormalizeRelativePath(string path)
@@ -107,7 +135,7 @@ namespace PhonemeFlow
 
     public interface IPhonemeFlow
     {
-        void Initialize(string dataPath, string voice);
+        bool Initialize(string dataPath, string voice);
         string GetPhonemes(string text);
     }
 }

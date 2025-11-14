@@ -12,9 +12,18 @@ namespace PhonemeFlow
         private const string CacheMarkerFile = ".phoneme_cache_ready";
         private string persistentPath = string.Empty;
 
-        public void Initialize(string dataPath, string voice)
+        public bool Initialize(string dataPath, string voice)
         {
-            NativeiOSWrapper.Initialize(dataPath, voice);
+            try
+            {
+                NativeiOSWrapper.Initialize(dataPath, voice);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PhonemeFlow iOS] Initialization failed: {ex.Message}");
+                return false;
+            }
         }
 
         public string GetPhonemes(string text)

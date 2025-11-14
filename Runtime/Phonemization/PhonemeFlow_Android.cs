@@ -13,9 +13,18 @@ namespace PhonemeFlow
         const string CacheMarkerFile = ".phoneme_cache_ready";
         const string StreamingAssetRoot = "PhonemeFlowResources/phoneme-data";
 
-        public void Initialize(string dataPath, string voice)
+        public bool Initialize(string dataPath, string voice)
         {
-            NativeAndroidWrapper.Initialize(dataPath, voice);
+            try
+            {
+                NativeAndroidWrapper.Initialize(dataPath, voice);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PhonemeFlow Android] Initialization failed: {ex.Message}");
+                return false;
+            }
         }
 
         public string GetPhonemes(string text)

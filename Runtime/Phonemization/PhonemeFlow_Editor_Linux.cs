@@ -5,9 +5,10 @@ namespace PhonemeFlow
     public class PhonemeFlow_Editor_Linux : IPhonemeFlow
     {
 
-        public void Initialize(string dataPath, string voice)
+        public bool Initialize(string dataPath, string voice)
         {
             NativeLinuxWrapper.Initialize(dataPath, voice);
+            return true;
         }
 
         public string GetPhonemes(string text)
